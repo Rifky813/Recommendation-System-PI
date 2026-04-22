@@ -1,11 +1,11 @@
 # Core dependencies
 requests==2.31.0
 beautifulsoup4==4.12.2
-pandas==2.0.3
+pandas
 
 # Embedding & Vector DB
 sentence-transformers==2.2.2
-qdrant-client==2.7.0
+qdrant-client
 
 # Frontend
 streamlit==1.28.1
