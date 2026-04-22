@@ -20,7 +20,7 @@ class EmbeddingManager:
         """
         print(f'Loading model: {model_name}...')
         self.model = SentenceTransformer(model_name)
-        self.embedding_dim = self.model.get_sentence_embedding_dimension()
+        self.embedding_dim = self.model.get_embedding_dimension()
         print(f'Model loaded. Embedding dimension: {self.embedding_dim}')
         
         print(f'Initializing Qdrant at {qdrant_path}...')
@@ -132,16 +132,16 @@ class EmbeddingManager:
         query_embedding = self.model.encode(query_text)
         
         # Search di Qdrant
-        results = self.qdrant_client.search(
+        results = self.qdrant_client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_embedding.tolist(),
+            query=query_embedding.tolist(),
             limit=limit,
             query_filter=filters
         )
         
         # Format results
         output = []
-        for result in results:
+        for result in results.points:
             output.append({
                 'score': result.score,
                 **result.payload
