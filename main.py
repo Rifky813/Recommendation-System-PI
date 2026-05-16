@@ -8,7 +8,7 @@ import os
 import sys
 import argparse
 from datetime import datetime
-from repository import GunadarmaRepositoryScraper
+from webscrape import GunadarmaRepositoryScraper
 from embedding import EmbeddingManager
 
 def print_section(title):
@@ -36,7 +36,7 @@ def scrape_papers(output_csv: str = 'papers_data.csv', max_pages: int = 5):
     print(f'\n✅ Scraping complete: {output_csv}')
     return output_csv
 
-def generate_embeddings_and_index(csv_path: str = 'papers_data.csv',
+def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
                                    qdrant_path: str = './qdrant_storage',
                                    model_name: str = 'indobenchmark/indobert-lite-base-p1',
                                    recreate: bool = True):
