@@ -66,7 +66,7 @@ class EmbeddingManager:
         Ingest papers dari CSV ke Qdrant dengan embeddings
         
         Args:
-            csv_path: Path ke CSV file dengan columns: [judul, penulis, jurusan, jenis, tahun, link]
+            csv_path: Path ke CSV file dengan columns: [jenis, fakultas, judul, dosen_pembimbing, jurusan, tahun, abstrak]
             recreate: Jika True, delete dan recreate collection
         """
         # Load data
@@ -94,12 +94,13 @@ class EmbeddingManager:
                 id=idx,  # atau bisa pakai uuid.uuid4().int
                 vector=embeddings[idx].tolist(),
                 payload={
-                    'judul': str(row['judul']),
-                    'penulis': str(row['penulis']),
-                    'jurusan': str(row['jurusan']),
                     'jenis': str(row['jenis']),
+                    'fakultas': str(row['fakultas']),
+                    'judul': str(row['judul']),
+                    'dosen_pembimbing': str(row['dosen_pembimbing']),
+                    'jurusan': str(row['jurusan']),
                     'tahun': str(row['tahun']),
-                    'link': str(row['link'])
+                    'abstrak': str(row['abstrak'])
                 }
             )
             points.append(point)
