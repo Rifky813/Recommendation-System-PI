@@ -10,7 +10,7 @@ from typing import List, Dict, Tuple
 class EmbeddingManager:
     """Manager untuk generate embeddings menggunakan IndoBERT dan manage Qdrant"""
     
-    def __init__(self, model_name: str = 'indobenchmark/indobert-lite-base-p1', 
+    def __init__(self, model_name: str = 'firqaaa/indo-sentence-bert-base', 
                  qdrant_path: str = './qdrant_storage'):
         """
         Initialize embedding manager
@@ -117,6 +117,9 @@ class EmbeddingManager:
         )
 
         df['teks'] = df['teks'].apply(self.clean_text)
+        
+        # Filter bad data (title with repeated strings)
+        df = df[~df['judul'].str.fullmatch(r'(.)\1{5,}', na=False)]
 
         # Create collection
         self.create_collection(recreate=recreate)
