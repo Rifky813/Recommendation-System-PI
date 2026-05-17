@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import re
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -61,6 +62,34 @@ class EmbeddingManager:
         print(f'Generated embeddings shape: {embeddings.shape}')
         return embeddings
     
+    def clean_text(self, text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+
+        # lowercase / case folding
+        text = text.lower()
+
+        # remove html tags
+        text = re.sub(r"<.*?>", " ", text)
+
+        # remove urls
+        text = re.sub(r"http\S+|www\S+", " ", text)
+
+        # remove email
+        text = re.sub(r"\S+@\S+", " ", text)
+
+        # remove newline, tab
+        text = re.sub(r"[\n\r\t]", " ", text)
+
+        # remove non-alphanumeric characters
+        # keep Indonesian letters/numbers/basic punctuation
+        text = re.sub(r"[^a-z0-9\s.,]", " ", text)
+
+        # normalize multiple spaces
+        text = re.sub(r"\s+", " ", text)
+
+        return text.strip()
+
     def ingest_papers(self, csv_path: str, recreate: bool = True):
         """
         Ingest papers dari CSV ke Qdrant dengan embeddings
@@ -81,11 +110,19 @@ class EmbeddingManager:
         # Clean data
         df = df.fillna('')
         
+        # Combine title + abstract
+        df['teks'] = (
+            df['judul'].astype(str) + '. ' +
+            df['abstrak'].astype(str)
+        )
+
+        df['teks'] = df['teks'].apply(self.clean_text)
+
         # Create collection
         self.create_collection(recreate=recreate)
         
         # Generate embeddings
-        embeddings = self.generate_embeddings(df['judul'].tolist())
+        embeddings = self.generate_embeddings(df['teks'].tolist())
         
         # Prepare points untuk Qdrant
         points = []
