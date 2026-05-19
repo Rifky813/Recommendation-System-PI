@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from embedding import EmbeddingManager
+from main import generate_paper_link
 import os
 
 # Page config
@@ -50,11 +51,12 @@ st.markdown("""
 def load_embedding_manager():
     """Load embedding manager (cached for performance)"""
     qdrant_path = './qdrant_storage'
+    collection_name = os.getenv('COLLECTION_NAME', 'papers')
     if not os.path.exists(qdrant_path):
         st.error("❌ Vector database tidak ditemukan. Silakan jalankan main.py terlebih dahulu.")
         st.stop()
     
-    return EmbeddingManager(qdrant_path=qdrant_path)
+    return EmbeddingManager(qdrant_path=qdrant_path, collection_name=collection_name)
 
 # Load manager
 em = load_embedding_manager()
@@ -82,7 +84,7 @@ with st.sidebar:
     st.markdown("### About")
     st.info("""
     **Sistem Rekomendasi Karya Ilmiah** menggunakan:
-    - 🤗 IndoBERT untuk embedding text
+    - 🤗 IndoSBERT untuk embedding text
     - 🔍 Qdrant untuk vector search
     - 🎯 Hybrid search (similarity + filtering)
     """)
@@ -178,21 +180,26 @@ with tab1:
                                     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                                     
                                     with col_m1:
-                                        st.caption(f"👤 **Penulis:** {paper['penulis']}")
+                                        st.caption(f"📋 **Jenis:** {paper['jenis']}")
                                     
                                     with col_m2:
                                         st.caption(f"🎓 **Jurusan:** {paper['jurusan']}")
                                     
                                     with col_m3:
                                         st.caption(f"📅 **Tahun:** {paper['tahun']}")
-                                    
-                                    with col_m4:
-                                        st.caption(f"📋 **Jenis:** {paper['jenis']}")
-                                    
+
+                                    col_n1, col_n2, col_n3 = st.columns(3)
+                                                                        
                                     # Link
-                                    if paper['link'] and paper['link'] != '':
-                                        st.markdown(f"🔗 [Buka Dokumen]({paper['link']})")
-                
+                                    with col_n1:
+                                        paper_link = generate_paper_link(paper['judul'])
+                                        st.link_button("🔗 Buka Dokumen", paper_link)
+
+                                    # Detailed stats
+                                    with col_n2:
+                                        with st.expander("Detail Abstrak"):
+                                            st.write(paper['abstrak'])
+
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
 
@@ -317,6 +324,6 @@ with tab2:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; font-size: 0.9em;'>
-    <p>📚 Sistem Rekomendasi Karya Ilmiah | Powered by IndoBERT + Qdrant | Built with Streamlit</p>
+    <p>📚 Sistem Rekomendasi Karya Ilmiah | Powered by IndoSBERT + Qdrant | Built with Streamlit</p>
 </div>
 """, unsafe_allow_html=True)

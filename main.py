@@ -7,6 +7,7 @@ Flow: Scrape -> Preprocess -> Generate Embeddings -> Index Qdrant -> Ready for I
 import os
 import sys
 import argparse
+from urllib.parse import quote_plus
 from datetime import datetime
 from webscrape import GunadarmaRepositoryScraper
 from embedding import EmbeddingManager
@@ -36,9 +37,19 @@ def scrape_papers(output_csv: str = 'papers_data.csv', max_pages: int = 5):
     print(f'\n✅ Scraping complete: {output_csv}')
     return output_csv
 
+def generate_paper_link(title: str) -> str:
+        base_url = "https://library.gunadarma.ac.id/deposit-system/epaper"
+
+        encoded_title = quote_plus(title)
+
+        return (
+            f"{base_url}"
+            f"?pembimbing=&penulis=&tahun=&jurusan=&judul={encoded_title}"
+        )
+
 def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
                                    qdrant_path: str = './qdrant_storage',
-                                   model_name: str = 'indobenchmark/indobert-lite-base-p1',
+                                   model_name: str = 'firqaaa/indo-sentence-bert-base',
                                    recreate: bool = True):
     """Phase 2 & 3: Generate embeddings dan index ke Qdrant"""
     print_section("PHASE 2-3: EMBEDDING & INDEXING")
@@ -110,12 +121,12 @@ def main():
                         help='Max pages to scrape')
     parser.add_argument('--qdrant-path', type=str, default='./qdrant_storage',
                         help='Path for Qdrant storage')
-    parser.add_argument('--model', type=str, default='indobenchmark/indobert-lite-base-p1',
+    parser.add_argument('--model', type=str, default='firqaaa/indo-sentence-bert-base',
                         help='IndoBERT model name')
     parser.add_argument('--skip-scrape', action='store_true',
                         help='Skip scraping, use existing CSV')
-    parser.add_argument('--recreate-db', action='store_true', default=True,
-                        help='Recreate Qdrant collection')
+    parser.add_argument('--recreate-db', action='store_true',
+                        help='Delete and recreate Qdrant collection')
     parser.add_argument('--test', action='store_true',
                         help='Run test search after pipeline')
     

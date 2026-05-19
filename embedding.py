@@ -8,7 +8,7 @@ import uuid
 from typing import List, Dict, Tuple
 
 class EmbeddingManager:
-    """Manager untuk generate embeddings menggunakan IndoBERT dan manage Qdrant"""
+    """Manager untuk generate embeddings menggunakan IndoSBERT dan manage Qdrant"""
     
     def __init__(self, model_name: str = 'firqaaa/indo-sentence-bert-base', 
                  qdrant_path: str = './qdrant_storage'):
@@ -16,7 +16,7 @@ class EmbeddingManager:
         Initialize embedding manager
         
         Args:
-            model_name: Model IndoBERT dari Huggingface
+            model_name: Model IndoSBERT dari Huggingface
             qdrant_path: Path untuk Qdrant persistent storage
         """
         print(f'Loading model: {model_name}...')
@@ -26,7 +26,7 @@ class EmbeddingManager:
         
         print(f'Initializing Qdrant at {qdrant_path}...')
         self.qdrant_client = QdrantClient(path=qdrant_path)
-        self.collection_name = 'papers'
+        self.collection_name = 'papers_IndoBERT'
     
     def create_collection(self, recreate: bool = False):
         """Create Qdrant collection untuk papers"""
@@ -90,6 +90,21 @@ class EmbeddingManager:
 
         return text.strip()
 
+    def is_repeated_char(self, text: str, min_repeat: int = 6) -> bool:
+        """
+        Return True if text consists mostly of one repeated character.
+        
+        Examples:
+        - aaaaaaaa
+        - zzzzzzzz
+        - 11111111
+        """
+        # remove spaces
+        text = text.replace(" ", "")
+
+        # check if all chars are same
+        return len(set(text)) == 1
+
     def ingest_papers(self, csv_path: str, recreate: bool = True):
         """
         Ingest papers dari CSV ke Qdrant dengan embeddings
@@ -119,8 +134,8 @@ class EmbeddingManager:
         df['teks'] = df['teks'].apply(self.clean_text)
         
         # Filter bad data (title with repeated strings)
-        df = df[~df['judul'].str.fullmatch(r'(.)\1{5,}', na=False)]
-
+        df = df[~df['judul'].apply(self.is_repeated_char)]
+        
         # Create collection
         self.create_collection(recreate=recreate)
         
