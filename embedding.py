@@ -11,7 +11,8 @@ class EmbeddingManager:
     """Manager untuk generate embeddings menggunakan IndoSBERT dan manage Qdrant"""
     
     def __init__(self, model_name: str = 'firqaaa/indo-sentence-bert-base', 
-                 qdrant_path: str = './qdrant_storage'):
+                 qdrant_path: str = './qdrant_storage',
+                 collection_name: str = 'papers'):
         """
         Initialize embedding manager
         
@@ -26,7 +27,7 @@ class EmbeddingManager:
         
         print(f'Initializing Qdrant at {qdrant_path}...')
         self.qdrant_client = QdrantClient(path=qdrant_path)
-        self.collection_name = 'papers_IndoBERT'
+        self.collection_name = collection_name
     
     def create_collection(self, recreate: bool = False):
         """Create Qdrant collection untuk papers"""

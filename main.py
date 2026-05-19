@@ -50,6 +50,7 @@ def generate_paper_link(title: str) -> str:
 def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
                                    qdrant_path: str = './qdrant_storage',
                                    model_name: str = 'firqaaa/indo-sentence-bert-base',
+                                   collection_name: str = 'papers',
                                    recreate: bool = True):
     """Phase 2 & 3: Generate embeddings dan index ke Qdrant"""
     print_section("PHASE 2-3: EMBEDDING & INDEXING")
@@ -59,7 +60,7 @@ def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
         return None
     
     print(f'\n[INFO] Initializing embedding manager...')
-    em = EmbeddingManager(model_name=model_name, qdrant_path=qdrant_path)
+    em = EmbeddingManager(model_name=model_name, qdrant_path=qdrant_path, collection_name=collection_name)
     
     print(f'\n[INFO] Ingesting papers to Qdrant...')
     num_papers = em.ingest_papers(csv_path, recreate=recreate)
@@ -129,6 +130,8 @@ def main():
                         help='Delete and recreate Qdrant collection')
     parser.add_argument('--test', action='store_true',
                         help='Run test search after pipeline')
+    parser.add_argument('--collection', type=str, default='papers',
+                        help='Nama collection di Qdrant')
     
     args = parser.parse_args()
     
@@ -158,6 +161,7 @@ def main():
             csv_path=csv_path,
             qdrant_path=args.qdrant_path,
             model_name=args.model,
+            collection_name=args.collection,
             recreate=args.recreate_db
         )
         
