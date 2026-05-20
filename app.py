@@ -134,7 +134,7 @@ with tab1:
         )
     
     # Search button
-    if st.button("🚀 Cari Rekomendasi", type="primary", use_container_width=True):
+    if st.button("🚀 Cari Rekomendasi", type="primary", width='stretch'):
         if not query.strip():
             st.warning("⚠️ Silakan masukkan judul atau topik pencarian")
         else:
@@ -238,11 +238,11 @@ with tab2:
             xaxis_tickangle=-45,
             showlegend=False
         )
-        st.plotly_chart(fig_jurusan, use_container_width=True)
+        st.plotly_chart(fig_jurusan, width='stretch')
         
         # Detailed stats
         with st.expander("📊 Detail Statistik Jurusan"):
-            st.dataframe(jurusan_dist.sort_values('Jumlah', ascending=False), use_container_width=True)
+            st.dataframe(jurusan_dist.sort_values('Jumlah', ascending=False), width='stretch')
     
     # Tren 2: Per Tahun
     with col_trend2:
@@ -263,11 +263,11 @@ with tab2:
         )
         fig_tahun.update_traces(line=dict(color='#1f77b4', width=3))
         fig_tahun.update_layout(height=400)
-        st.plotly_chart(fig_tahun, use_container_width=True)
+        st.plotly_chart(fig_tahun, width='stretch')
         
         # Detailed stats
         with st.expander("📊 Detail Statistik Tahun"):
-            st.dataframe(tahun_dist[['Tahun', 'Jumlah']].sort_values('Tahun', ascending=False), use_container_width=True)
+            st.dataframe(tahun_dist[['Tahun', 'Jumlah']].sort_values('Tahun', ascending=False), width='stretch')
     
     # Advanced Analytics
     st.markdown("### 🔬 Analisis Lanjutan")
@@ -316,7 +316,7 @@ with tab2:
             color_continuous_scale='YlOrRd'
         )
         fig_heatmap.update_layout(height=500)
-        st.plotly_chart(fig_heatmap, use_container_width=True)
+        st.plotly_chart(fig_heatmap, width='stretch')
     except Exception as e:
         st.warning(f"Tidak dapat membuat heatmap: {str(e)}")
 
