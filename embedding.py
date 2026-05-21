@@ -106,13 +106,14 @@ class EmbeddingManager:
         # check if all chars are same
         return len(set(text)) == 1
 
-    def ingest_papers(self, csv_path: str, recreate: bool = True):
+    def ingest_papers(self, csv_path: str, recreate: bool = True, title_weight: float = None):
         """
-        Ingest papers dari CSV ke Qdrant dengan embeddings
+        Ingest papers dari CSV ke Qdrant dengan embeddings, serta optional title weighting
         
         Args:
             csv_path: Path ke CSV file dengan columns: [jenis, fakultas, judul, dosen_pembimbing, jurusan, tahun, abstrak]
             recreate: Jika True, delete dan recreate collection
+            title_weight: None = combined text (default), 0.7 = 70% title
         """
         # Load data
         print(f'Loading papers from {csv_path}...')
@@ -126,23 +127,38 @@ class EmbeddingManager:
         # Clean data
         df = df.fillna('')
         
-        # Combine title + abstract
-        df['teks'] = (
-            df['judul'].astype(str) + '. ' +
-            df['abstrak'].astype(str)
-        )
-
-        df['teks'] = df['teks'].apply(self.clean_text)
-        
         # Filter bad data (title with repeated strings)
         df = df[~df['judul'].apply(self.is_repeated_char)]
-        
+
+        # Filter out data with out of range or error year
+        df = df[df['tahun'].isin(['2020', '2021', '2022', '2023', '2024', '2025', '2026'])]
+        print(f'After year filter: {len(df)} papers')  # Debug
+
+        # Capitalize all the titles
+        df['judul'] = df['judul'].str.upper()
+        print(f'After capitalize: {len(df)} papers')  # Debug
+
+        # Generate embeddings
+        if title_weight is not None:
+            judul_cleaned = df['judul'].apply(self.clean_text)
+            abstrak_cleaned = df['abstrak'].apply(self.clean_text)
+
+            print(f'Generating weighted embeddings (title_weight={title_weight})...')
+            title_embs = self.generate_embeddings(judul_cleaned.tolist())
+            abstract_embs = self.generate_embeddings(abstrak_cleaned.tolist())
+            embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
+        else:
+        # Combine title + abstract
+            df['teks'] = (
+                df['judul'].astype(str) + '. ' +
+                df['abstrak'].astype(str)
+            )
+            df['teks'] = df['teks'].apply(self.clean_text)
+            embeddings = self.generate_embeddings(df['teks'].tolist())
+
         # Create collection
         self.create_collection(recreate=recreate)
-        
-        # Generate embeddings
-        embeddings = self.generate_embeddings(df['teks'].tolist())
-        
+                
         # Prepare points untuk Qdrant
         points = []
         for idx, (_, row) in enumerate(df.iterrows()):

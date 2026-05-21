@@ -51,7 +51,8 @@ def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
                                    qdrant_path: str = './qdrant_storage',
                                    model_name: str = 'firqaaa/indo-sentence-bert-base',
                                    collection_name: str = 'papers',
-                                   recreate: bool = True):
+                                   recreate: bool = True,
+                                   title_weight: float = None):
     """Phase 2 & 3: Generate embeddings dan index ke Qdrant"""
     print_section("PHASE 2-3: EMBEDDING & INDEXING")
     
@@ -63,7 +64,7 @@ def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
     em = EmbeddingManager(model_name=model_name, qdrant_path=qdrant_path, collection_name=collection_name)
     
     print(f'\n[INFO] Ingesting papers to Qdrant...')
-    num_papers = em.ingest_papers(csv_path, recreate=recreate)
+    num_papers = em.ingest_papers(csv_path, recreate=recreate, title_weight=title_weight)
     
     # Print stats
     stats = em.get_collection_stats()
@@ -132,7 +133,9 @@ def main():
                         help='Run test search after pipeline')
     parser.add_argument('--collection', type=str, default='papers',
                         help='Nama collection di Qdrant')
-    
+    parser.add_argument('--title-weight', type=float, default=None,
+                        help='Title weighting: 0.7 = 70% title, 30% abstract. None = combined text (default)')
+
     args = parser.parse_args()
     
     print("\n" + "="*60)
@@ -162,7 +165,8 @@ def main():
             qdrant_path=args.qdrant_path,
             model_name=args.model,
             collection_name=args.collection,
-            recreate=args.recreate_db
+            recreate=args.recreate_db,
+            title_weight=args.title_weight
         )
         
         if em is None:
