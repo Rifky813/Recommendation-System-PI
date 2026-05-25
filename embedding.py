@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import re
+from sklearn.preprocessing import normalize
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -59,7 +60,7 @@ class EmbeddingManager:
             Array of embeddings shape [n, embedding_dim]
         """
         print(f'Generating embeddings for {len(texts)} texts...')
-        embeddings = self.model.encode(texts, batch_size=batch_size, show_progress_bar=True)
+        embeddings = self.model.encode(texts, batch_size=batch_size, normalize_embeddings=True, show_progress_bar=True)
         print(f'Generated embeddings shape: {embeddings.shape}')
         return embeddings
     
@@ -147,6 +148,7 @@ class EmbeddingManager:
             title_embs = self.generate_embeddings(judul_cleaned.tolist())
             abstract_embs = self.generate_embeddings(abstrak_cleaned.tolist())
             embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
+            embeddings = normalize(embeddings)
         else:
         # Combine title + abstract
             df['teks'] = (
@@ -162,10 +164,13 @@ class EmbeddingManager:
         # Prepare points untuk Qdrant
         points = []
         for idx, (_, row) in enumerate(df.iterrows()):
+            point_id = str(uuid.uuid4())
+            
             point = PointStruct(
-                id=idx,  # atau bisa pakai uuid.uuid4().int
+                id=point_id,  # atau bisa pakai uuid.uuid4().int
                 vector=embeddings[idx].tolist(),
                 payload={
+                    'id_penulisan': point_id,
                     'jenis': str(row['jenis']),
                     'fakultas': str(row['fakultas']),
                     'judul': str(row['judul']),
@@ -222,6 +227,25 @@ class EmbeddingManager:
         
         return output
     
+    # Di embedding.py - method baru
+    def search_similar_by_paper_id(self, paper_id: str, limit: int = 5):
+        """Search papers mirip dengan paper tertentu"""
+        # Retrieve point dari Qdrant
+        point = self.qdrant_client.retrieve(self.collection_name, [paper_id])
+        if not point:
+            return []
+        
+        # Gunakan vector dari point tersebut untuk search
+        vector = point[0].vector
+        results = self.qdrant_client.query_points(
+            collection_name=self.collection_name,
+            query=vector,
+            limit=limit + 1  # +1 untuk exclude paper itu sendiri
+        )
+        
+        # Filter out paper yang diklik sendiri
+        return [r for r in results.points if r.id != paper_id]
+
     def get_collection_stats(self) -> Dict:
         """Get stats tentang collection"""
         collection_info = self.qdrant_client.get_collection(self.collection_name)
