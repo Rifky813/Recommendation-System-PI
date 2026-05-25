@@ -43,6 +43,14 @@ st.markdown("""
         font-size: 0.9em;
         margin-left: 10px;
     }
+    .paper-link {
+        text-decoration: none !important; 
+        color: inherit !important; 
+        font-family: inherit;
+    }
+    .paper-link:hover {
+        text-decoration: underline !important; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -168,7 +176,15 @@ with tab1:
                                     col_num, col_score = st.columns([15, 1])
                                     
                                     with col_num:
-                                        st.markdown(f"**{idx}. {paper['judul']}**")
+                                        paper_link = generate_paper_link(paper['judul'])
+                                        st.markdown(
+                                        f"""
+                                        <a href="{paper_link}" target="_blank" class="paper-link">
+                                            <strong>{idx}. {paper['judul']}</strong>
+                                        </a>
+                                        """,
+                                        unsafe_allow_html=True
+                                    )
                                     
                                     with col_score:
                                         score_pct = round(paper['score'] * 100, 1)
@@ -177,7 +193,7 @@ with tab1:
                                         """, unsafe_allow_html=True)
                                     
                                     # Metadata
-                                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                                    col_m1, col_m2, col_m3= st.columns(3)
                                     
                                     with col_m1:
                                         st.caption(f"📋 **Jenis:** {paper['jenis']}")
@@ -187,17 +203,9 @@ with tab1:
                                     
                                     with col_m3:
                                         st.caption(f"📅 **Tahun:** {paper['tahun']}")
-
-                                    col_n1, col_n2, col_n3 = st.columns(3)
-                                                                        
-                                    # Link
-                                    with col_n1:
-                                        paper_link = generate_paper_link(paper['judul'])
-                                        st.link_button("🔗 Buka Dokumen", paper_link)
-
+                                  
                                     # Detailed stats
-                                    with col_n2:
-                                        with st.expander("Detail Abstrak"):
+                                    with st.expander("Detail Abstrak"):
                                             st.write(paper['abstrak'])
 
                 except Exception as e:
