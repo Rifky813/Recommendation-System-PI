@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import re
-from sklearn.preprocessing import normalize
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -137,26 +136,32 @@ class EmbeddingManager:
 
         # Capitalize all the titles
         df['judul'] = df['judul'].str.upper()
-        print(f'After capitalize: {len(df)} papers')  # Debug
 
-        # Generate embeddings
-        if title_weight is not None:
-            judul_cleaned = df['judul'].apply(self.clean_text)
-            abstrak_cleaned = df['abstrak'].apply(self.clean_text)
-
-            print(f'Generating weighted embeddings (title_weight={title_weight})...')
-            title_embs = self.generate_embeddings(judul_cleaned.tolist())
-            abstract_embs = self.generate_embeddings(abstrak_cleaned.tolist())
+        print('Loading embedded numpy files...')
+        title_embs = np.load('embedded_output/title_embeddings.npy')
+        abstract_embs = np.load('embedded_output/abstract_embeddings.npy')
+        
+        if title_embs is not None and abstract_embs is not None:
             embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
-            embeddings = normalize(embeddings)
+        
         else:
-        # Combine title + abstract
-            df['teks'] = (
-                df['judul'].astype(str) + '. ' +
-                df['abstrak'].astype(str)
-            )
-            df['teks'] = df['teks'].apply(self.clean_text)
-            embeddings = self.generate_embeddings(df['teks'].tolist())
+            # Generate embeddings
+            if title_weight is not None:
+                judul_cleaned = df['judul'].apply(self.clean_text)
+                abstrak_cleaned = df['abstrak'].apply(self.clean_text)
+
+                print(f'Generating weighted embeddings (title_weight={title_weight})...')
+                title_embs = self.generate_embeddings(judul_cleaned.tolist())
+                abstract_embs = self.generate_embeddings(abstrak_cleaned.tolist())
+                embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
+            else:
+            # Combine title + abstract
+                df['teks'] = (
+                    df['judul'].astype(str) + '. ' +
+                    df['abstrak'].astype(str)
+                )
+                df['teks'] = df['teks'].apply(self.clean_text)
+                embeddings = self.generate_embeddings(df['teks'].tolist())
 
         # Create collection
         self.create_collection(recreate=recreate)
@@ -255,7 +260,7 @@ class EmbeddingManager:
             'distance': collection_info.config.params.vectors.distance
         }
     
-    def get_all_papers(self, limit: int = 1000) -> List[Dict]:
+    def get_all_papers(self, limit: int = 30000) -> List[Dict]:
         """Get semua papers dari collection"""
         # Scroll through all points
         points, _ = self.qdrant_client.scroll(
