@@ -222,34 +222,64 @@ class EmbeddingManager:
             query_filter=filters
         )
         
-        # Format results
+        # Format results (include id for later reference)
         output = []
         for result in results.points:
             output.append({
+                'id': result.id,
                 'score': result.score,
                 **result.payload
             })
         
         return output
     
-    # Di embedding.py - method baru
-    def search_similar_by_paper_id(self, paper_id: str, limit: int = 5):
-        """Search papers mirip dengan paper tertentu"""
-        # Retrieve point dari Qdrant
-        point = self.qdrant_client.retrieve(self.collection_name, [paper_id])
-        if not point:
+    def search_similar_by_paper_id(self, paper_id: str, limit: int = 5) -> List[Dict]:
+        """
+        Search papers mirip dengan paper tertentu (berdasarkan ID/vector)
+        
+        Args:
+            paper_id: ID dari paper yang ingin dicari rekomendasinya
+            limit: Jumlah hasil yang ingin ditampilkan (default 5)
+        
+        Returns:
+            List of similar papers dengan score dan metadata, exclude paper_id itu sendiri
+        """
+        try:
+            # Retrieve point dari Qdrant untuk dapatkan vectornya
+            points = self.qdrant_client.retrieve(
+                collection_name=self.collection_name,
+                ids=[paper_id],
+                with_vectors=True
+            )
+            
+            if not points:
+                return []
+            
+            paper_vector = points[0].vector
+            
+            # Query dengan vector, limit+1 untuk bisa exclude paper itu sendiri
+            results = self.qdrant_client.query_points(
+                collection_name=self.collection_name,
+                query=paper_vector,
+                limit=limit + 1
+            )
+            
+            # Format results & filter out paper_id itu sendiri
+            output = []
+            for result in results.points:
+                if result.id != paper_id:
+                    output.append({
+                        'id': result.id,
+                        'score': result.score,
+                        **result.payload
+                    })
+                    if len(output) >= limit:
+                        break
+            
+            return output
+        except Exception as e:
+            print(f'Error searching similar papers by ID: {str(e)}')
             return []
-        
-        # Gunakan vector dari point tersebut untuk search
-        vector = point[0].vector
-        results = self.qdrant_client.query_points(
-            collection_name=self.collection_name,
-            query=vector,
-            limit=limit + 1  # +1 untuk exclude paper itu sendiri
-        )
-        
-        # Filter out paper yang diklik sendiri
-        return [r for r in results.points if r.id != paper_id]
 
     def get_collection_stats(self) -> Dict:
         """Get stats tentang collection"""

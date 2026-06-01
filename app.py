@@ -49,7 +49,12 @@ st.markdown("""
         font-family: inherit;
     }
     .paper-link:hover {
-        text-decoration: underline !important; 
+        text-decoration: underline !important;
+        color: #0073bb !important;
+    }
+    .stExpander > details {
+        border: none;
+        box-shadow: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -75,7 +80,6 @@ stats = em.get_collection_stats()
 # Header
 st.markdown('<h1 class="main-header">📚 Sistem Rekomendasi Karya Ilmiah</h1>', 
             unsafe_allow_html=True)
-st.markdown(f"**Database:** {stats['points_count']} karya ilmiah | **Embedding Model:** IndoBERT Lite | **Vector Dimension:** {stats['vector_size']}")
 
 # Sidebar
 with st.sidebar:
@@ -97,119 +101,265 @@ with st.sidebar:
     - 🎯 Hybrid search (similarity + filtering)
     """)
 
+# Callback function to maintain state
+def buka_detail(data_paper):
+    st.session_state.selected_paper = data_paper
+
+# Initialize session state untuk detail view
+if 'selected_paper' not in st.session_state:
+    st.session_state.selected_paper = None
+if 'search_results' not in st.session_state:
+    st.session_state.search_results = None
+if 'last_query' not in st.session_state:
+    st.session_state.last_query = ""
+
 # Main tabs
 tab1, tab2 = st.tabs(["🔍 Rekomendasi", "📊 Tren Analisis"])
 
 # ============= TAB 1: RECOMMENDATION =============
 with tab1:
-    st.markdown('<h2 class="subheader-custom">Cari Karya Ilmiah Sejenis</h2>', 
-                unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        query = st.text_input(
-            "📖 Masukkan judul atau topik karya ilmiah yang Anda cari:",
-            placeholder="Contoh: sistem rekomendasi menggunakan machine learning",
-            key="search_query"
-        )
-    
-    with col2:
-        k_results = st.slider(
-            "Jumlah hasil",
-            min_value=5,
-            max_value=30,
-            value=10,
-            key="k_results"
-        )
-    
-    # Filters (sidebar-like)
-    st.markdown("### 🔎 Filter Hasil")
-    col_f1, col_f2 = st.columns(2)
-    
-    with col_f1:
-        filter_jurusan = st.selectbox(
-            "Filter by Jurusan (opsional):",
-            ["Semua"] + sorted(list(trends['jurusan_distribution'].keys())),
-            key="filter_jurusan"
-        )
-    
-    with col_f2:
-        filter_tahun = st.selectbox(
-            "Filter by Tahun (opsional):",
-            ["Semua"] + sorted(list(trends['tahun_distribution'].keys()), reverse=True),
-            key="filter_tahun"
-        )
-    
-    # Search button
-    if st.button("🚀 Cari Rekomendasi", type="primary", width='stretch'):
-        if not query.strip():
-            st.warning("⚠️ Silakan masukkan judul atau topik pencarian")
-        else:
-            with st.spinner("🔄 Mencari rekomendasi..."):
-                try:
-                    # Search
-                    results = em.search_similar(query, limit=k_results)
-                    
-                    if not results:
-                        st.warning("❌ Tidak ada hasil yang ditemukan")
-                    else:
-                        # Apply additional filtering if needed
-                        filtered_results = results.copy()
-                        
-                        if filter_jurusan != "Semua":
-                            filtered_results = [r for r in filtered_results 
-                                              if r['jurusan'] == filter_jurusan]
-                        
-                        if filter_tahun != "Semua":
-                            filtered_results = [r for r in filtered_results 
-                                              if r['tahun'] == filter_tahun]
-                        
-                        if not filtered_results:
-                            st.warning("⚠️ Tidak ada hasil yang sesuai dengan filter")
+    # ===== CONDITIONAL RENDERING: SEARCH VIEW vs DETAIL VIEW =====
+    if st.session_state.selected_paper is None:
+        # ===== SEARCH VIEW (EXISTING) =====
+        st.markdown('<h2 class="subheader-custom">Cari Karya Ilmiah Sejenis</h2>', 
+                    unsafe_allow_html=True)
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            query = st.text_input(
+                "📖 Masukkan judul atau topik karya ilmiah yang Anda cari:",
+                placeholder="Contoh: sistem rekomendasi menggunakan machine learning",
+                key="search_query"
+            )
+        
+        with col2:
+            k_results = st.slider(
+                "Jumlah hasil",
+                min_value=5,
+                max_value=30,
+                value=10,
+                key="k_results"
+            )
+        
+        # Filters (sidebar-like)
+        st.markdown("### 🔎 Filter Hasil")
+        col_f1, col_f2 = st.columns(2)
+        
+        with col_f1:
+            filter_jurusan = st.selectbox(
+                "Filter by Jurusan (opsional):",
+                ["Semua"] + sorted(list(trends['jurusan_distribution'].keys())),
+                key="filter_jurusan"
+            )
+        
+        with col_f2:
+            filter_tahun = st.selectbox(
+                "Filter by Tahun (opsional):",
+                ["Semua"] + sorted(list(trends['tahun_distribution'].keys()), reverse=True),
+                key="filter_tahun"
+            )
+        
+        # Search button & rendering logic
+        btn_pressed = st.button("🚀 Cari Rekomendasi", type="primary", use_container_width=True)
+
+        # Render jika tombol ditekan ATAU ada cache hasil pencarian sebelumnya
+        if btn_pressed or st.session_state.search_results is not None:
+            if not query.strip() and st.session_state.search_results is None:
+                st.warning("⚠️ Silakan masukkan judul atau topik pencarian")
+            else:
+                with st.spinner("🔄 Mencari rekomendasi..."):
+                    try:
+                        # Logika Cache: Cari baru jika query berubah, atau ambil dari cache jika kembali dari halaman detail
+                        if btn_pressed or st.session_state.last_query != query:
+                            results = em.search_similar(query, limit=k_results)
+                            st.session_state.search_results = results
+                            st.session_state.last_query = query
                         else:
-                            st.success(f"✅ Ditemukan {len(filtered_results)} karya ilmiah yang sejenis")
+                            results = st.session_state.search_results
+                        
+                        if not results:
+                            st.warning("❌ Tidak ada hasil yang ditemukan")
+                        else:
+                            # Apply additional filtering if needed
+                            filtered_results = results.copy()
                             
-                            # Display results
-                            for idx, paper in enumerate(filtered_results, 1):
-                                with st.container(border=True):
-                                    col_num, col_score = st.columns([15, 1])
+                            if filter_jurusan != "Semua":
+                                filtered_results = [r for r in filtered_results 
+                                                if r['jurusan'] == filter_jurusan]
+                            
+                            if filter_tahun != "Semua":
+                                filtered_results = [r for r in filtered_results 
+                                                if r['tahun'] == filter_tahun]
+                            
+                            if not filtered_results:
+                                st.warning("⚠️ Tidak ada hasil yang sesuai dengan filter")
+                            else:
+                                st.success(f"✅ Ditemukan {len(filtered_results)} karya ilmiah yang sejenis")
+                                
+                                # Display results
+                                for idx, paper in enumerate(filtered_results, 1):
+                                    with st.container(border=True):
+                                        col_num, col_score = st.columns([15, 1])
+                                        
+                                        with col_num:
+                                            paper_link = generate_paper_link(paper['judul'])
+                                            st.markdown(
+                                                f"""
+                                                <a href="{paper_link}" target="_blank" class="paper-link">
+                                                    <strong>{idx}. {paper['judul']}</strong>
+                                                </a>
+                                                """,
+                                                unsafe_allow_html=True
+                                            )
+                                        
+                                        with col_score:
+                                            score_pct = round(paper['score'] * 100, 1)
+                                            st.markdown(f"""
+                                            <div class="score-badge">{score_pct}%</div>
+                                            """, unsafe_allow_html=True)
+                                        
+                                        # Metadata
+                                        col_m1, col_m2, col_m3 = st.columns(3, vertical_alignment='center')
+
+                                        with col_m1:
+                                            st.caption(f"**{paper['jenis']}  |  {paper['jurusan']}  |  {paper['tahun']}**", text_alignment='center')
+                                        
+                                        with col_m2:
+                                            # MENGGUNAKAN CALLBACK UNTUK TOMBOL DETAIL
+                                            st.html("""
+                                                <style>                                                
+                                                /* Efek Hover */
+                                                div[data-testid="stColumn"] button:hover {
+                                                    color: #0073bb !important; /* Warna biru */
+                                                    text-decoration: underline !important; /* Garis bawah */
+                                                    background: transparent !important;
+                                                }
+                                                
+                                                /* Menghilangkan efek warna abu-abu bawaan streamlit saat tombol diklik/fokus */
+                                                div[data-testid="stColumn"] button:focus:not(:active) {
+                                                    background: transparent !important;
+                                                    color: #0000FF !important;
+                                                }
+                                                </style>
+                                            """)
+                                            st.button(
+                                                "📖 Lihat Detail & Karya Serupa", 
+                                                key=f"view_{idx}_{paper['judul']}", 
+                                                use_container_width=True,
+                                                on_click=buka_detail,
+                                                args=(paper,),
+                                                type='tertiary'
+                                            )
+
+                                        # with col_m3:
+                                        #     st.caption(f"*{paper['jurusan']}*", text_alignment='center')
+                                        
+                                        # with col_m4:
+                                        #     st.caption(f"*{paper['tahun']}*", text_alignment='left')
                                     
-                                    with col_num:
-                                        paper_link = generate_paper_link(paper['judul'])
-                                        st.markdown(
-                                        f"""
-                                        <a href="{paper_link}" target="_blank" class="paper-link">
-                                            <strong>{idx}. {paper['judul']}</strong>
-                                        </a>
-                                        """,
-                                        unsafe_allow_html=True
-                                    )
-                                    
-                                    with col_score:
-                                        score_pct = round(paper['score'] * 100, 1)
-                                        st.markdown(f"""
-                                        <div class="score-badge">{score_pct}%</div>
-                                        """, unsafe_allow_html=True)
-                                    
-                                    # Metadata
-                                    col_m1, col_m2, col_m3= st.columns(3)
-                                    
-                                    with col_m1:
-                                        st.caption(f"📋 **Jenis:** {paper['jenis']}")
-                                    
-                                    with col_m2:
-                                        st.caption(f"🎓 **Jurusan:** {paper['jurusan']}")
-                                    
-                                    with col_m3:
-                                        st.caption(f"📅 **Tahun:** {paper['tahun']}")
-                                  
-                                    # Detailed stats
-                                    with st.expander("Detail Abstrak"):
+                                        # Detailed stats
+                                        with st.expander("Detail Abstrak"):
                                             st.write(paper['abstrak'])
 
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+        
+    else:
+        # ===== DETAIL VIEW =====
+        paper = st.session_state.selected_paper
+        
+        # Back button
+        col_back, col_spacer = st.columns([1, 10])
+        with col_back:
+            if st.button("⬅️ Kembali", use_container_width=True):
+                st.session_state.selected_paper = None
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Paper detail metadata
+        st.markdown(f"## {paper['judul']}")
+        
+        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+        with col_d1:
+            st.caption(f"📋 **Jenis:** {paper['jenis']}")
+        with col_d2:
+            st.caption(f"🎓 **Jurusan:** {paper['jurusan']}")
+        with col_d3:
+            st.caption(f"📅 **Tahun:** {paper['tahun']}")
+        with col_d4:
+            st.caption(f"🏢 **Fakultas:** {paper['fakultas']}")
+        
+        st.markdown("### Abstrak")
+        st.write(paper['abstrak'])
+        
+        st.markdown("### Informasi Tambahan")
+        col_info1, col_info2 = st.columns(2)
+        with col_info1:
+            st.caption(f"👨‍🏫 **Dosen Pembimbing:** {paper['dosen_pembimbing']}")
+        with col_info2:
+            paper_link = generate_paper_link(paper['judul'])
+            st.link_button("🔗 Buka Dokumen", paper_link, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Similar papers section
+        st.markdown("### 📚 Dokumen Serupa")
+        
+        with st.spinner("🔄 Mencari dokumen serupa..."):
+            try:
+                similar_papers = em.search_similar_by_paper_id(paper['id'], limit=5)
+                
+                if not similar_papers:
+                    st.info("ℹ️ Tidak ada dokumen serupa yang ditemukan")
+                else:
+                    st.write(f"**Ditemukan {len(similar_papers)} dokumen serupa:**")
+                    
+                    for idx, similar_paper in enumerate(similar_papers, 1):
+                        with st.container(border=True):
+                            col_sim_num, col_sim_score = st.columns([15, 1])
+                            
+                            with col_sim_num:
+                                st.markdown(f"**{idx}. {similar_paper['judul']}**")
+                            
+                            with col_sim_score:
+                                score_pct = round(similar_paper['score'] * 100, 1)
+                                st.markdown(f"""
+                                <div class="score-badge">{score_pct}%</div>
+                                """, unsafe_allow_html=True)
+                            
+                            # Metadata
+                            col_sim_m1, col_sim_m2, col_sim_m3 = st.columns(3)
+                            with col_sim_m1:
+                                st.caption(f"📋 **Jenis:** {similar_paper['jenis']}")
+                            with col_sim_m2:
+                                st.caption(f"🎓 **Jurusan:** {similar_paper['jurusan']}")
+                            with col_sim_m3:
+                                st.caption(f"📅 **Tahun:** {similar_paper['tahun']}")
+                            
+                            # Detail button for similar papers
+                            col_sim_detail, col_sim_doc = st.columns(2)
+                            with col_sim_detail:
+                                # MENGGUNAKAN CALLBACK UNTUK TOMBOL DOKUMEN SERUPA
+                                st.button(
+                                    "📖 Lihat Detail", 
+                                    key=f"detail_{similar_paper['id']}", 
+                                    use_container_width=True,
+                                    on_click=buka_detail,
+                                    args=(similar_paper,)
+                                )
+                            
+                            with col_sim_doc:
+                                similar_link = generate_paper_link(similar_paper['judul'])
+                                st.link_button("🔗 Buka", similar_link, use_container_width=True)
+                            
+                            # Abstract expander
+                            with st.expander("Lihat Abstrak"):
+                                st.write(similar_paper['abstrak'])
+            
+            except Exception as e:
+                st.error(f"❌ Error mencari dokumen serupa: {str(e)}")
 
 # ============= TAB 2: TREND ANALYSIS =============
 with tab2:
