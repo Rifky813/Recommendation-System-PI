@@ -6,6 +6,7 @@ pandas
 # Embedding & Vector DB
 sentence-transformers
 qdrant-client
+fastembed
 
 # Frontend
 streamlit

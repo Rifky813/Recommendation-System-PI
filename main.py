@@ -38,14 +38,14 @@ def scrape_papers(output_csv: str = 'papers_data.csv', max_pages: int = 5):
     return output_csv
 
 def generate_paper_link(title: str) -> str:
-        base_url = "https://library.gunadarma.ac.id/deposit-system/epaper"
+    base_url = "https://library.gunadarma.ac.id/deposit-system/epaper"
 
-        encoded_title = quote_plus(title)
+    encoded_title = quote_plus(title)
 
-        return (
-            f"{base_url}"
-            f"?pembimbing=&penulis=&tahun=&jurusan=&judul={encoded_title}"
-        )
+    return (
+        f"{base_url}"
+        f"?pembimbing=&penulis=&tahun=&jurusan=&judul={encoded_title}"
+    )
 
 def generate_embeddings_and_index(csv_path: str = 'all_papers_data.csv',
                                    qdrant_path: str = './qdrant_storage',
@@ -106,7 +106,7 @@ def test_search(em: EmbeddingManager, query: str = "sistem rekomendasi machine l
     print(f'\n[TEST] Query: "{query}"')
     print(f'[TEST] Searching for 5 similar papers...\n')
     
-    results = em.search_similar(query, limit=5)
+    results = em.search_hybrid(query, limit=5)
     
     for idx, result in enumerate(results, 1):
         print(f'{idx}. [{result["score"]:.3f}] {result["judul"][:80]}...')

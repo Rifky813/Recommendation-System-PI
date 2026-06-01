@@ -3,34 +3,45 @@ import numpy as np
 import re
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import (
+    Distance, VectorParams, PointStruct, SparseVector, 
+    SparseVectorParams, Modifier, Prefetch, Fusion, FusionQuery
+)
 import uuid
 from typing import List, Dict, Tuple
+from fastembed import SparseTextEmbedding
 
 class EmbeddingManager:
     """Manager untuk generate embeddings menggunakan IndoSBERT dan manage Qdrant"""
     
     def __init__(self, model_name: str = 'firqaaa/indo-sentence-bert-base', 
                  qdrant_path: str = './qdrant_storage',
-                 collection_name: str = 'papers'):
+                 collection_name: str = 'hybrid_60'):
         """
-        Initialize embedding manager
+        Initialize embedding manager dengan dense + sparse (BM25) support
         
         Args:
-            model_name: Model IndoSBERT dari Huggingface
+            model_name: Model IndoSBERT dari Huggingface (dense)
             qdrant_path: Path untuk Qdrant persistent storage
+            collection_name: Collection name di Qdrant
         """
-        print(f'Loading model: {model_name}...')
+        print(f'Loading dense model: {model_name}...')
         self.model = SentenceTransformer(model_name)
         self.embedding_dim = self.model.get_embedding_dimension()
-        print(f'Model loaded. Embedding dimension: {self.embedding_dim}')
+        print(f'Dense model loaded. Embedding dimension: {self.embedding_dim}')
+        
+        # Initialize sparse BM25 model dari fastembed
+        self.sparse_model = None
+        print(f'Loading sparse embedding model (BM25)...')
+        self.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
+        print(f'Sparse BM25 model loaded successfully')
         
         print(f'Initializing Qdrant at {qdrant_path}...')
         self.qdrant_client = QdrantClient(path=qdrant_path)
         self.collection_name = collection_name
     
     def create_collection(self, recreate: bool = False):
-        """Create Qdrant collection untuk papers"""
+        """Create Qdrant collection dengan support dense + sparse (BM25) vectors"""
         try:
             if recreate:
                 self.qdrant_client.delete_collection(self.collection_name)
@@ -38,14 +49,31 @@ class EmbeddingManager:
         except:
             pass
         
+        # Check if collection already exists
+        try:
+            collections = self.qdrant_client.get_collections()
+            if any(c.name == self.collection_name for c in collections.collections):
+                print(f'Collection {self.collection_name} already exists')
+                return
+        except:
+            pass
+        
+        print(f'Creating collection: {self.collection_name}...')
         self.qdrant_client.create_collection(
             collection_name=self.collection_name,
-            vectors_config=VectorParams(
-                size=self.embedding_dim,
-                distance=Distance.COSINE
-            )
+            vectors_config={
+                'dense': VectorParams(
+                    size=self.embedding_dim,
+                    distance=Distance.COSINE
+                )
+            },
+            sparse_vectors_config={
+                'sparse': SparseVectorParams(
+                    modifier=Modifier.IDF  # Use IDF for BM25
+                )
+            }
         )
-        print(f'Created collection: {self.collection_name}')
+        print(f'Created collection: {self.collection_name} with dense + sparse support')
     
     def generate_embeddings(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
         """
@@ -108,7 +136,7 @@ class EmbeddingManager:
 
     def ingest_papers(self, csv_path: str, recreate: bool = True, title_weight: float = None):
         """
-        Ingest papers dari CSV ke Qdrant dengan embeddings, serta optional title weighting
+        Ingest papers ke Qdrant dengan dense + sparse (BM25) embeddings
         
         Args:
             csv_path: Path ke CSV file dengan columns: [jenis, fakultas, judul, dosen_pembimbing, jurusan, tahun, abstrak]
@@ -132,7 +160,7 @@ class EmbeddingManager:
 
         # Filter out data with out of range or error year
         df = df[df['tahun'].isin(['2020', '2021', '2022', '2023', '2024', '2025', '2026'])]
-        print(f'After year filter: {len(df)} papers')  # Debug
+        print(f'After year filter: {len(df)} papers')
 
         # Capitalize all the titles
         df['judul'] = df['judul'].str.upper()
@@ -145,12 +173,12 @@ class EmbeddingManager:
             embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
         
         else:
-            # Generate embeddings
+            # Generate dense embeddings
             if title_weight is not None:
                 judul_cleaned = df['judul'].apply(self.clean_text)
                 abstrak_cleaned = df['abstrak'].apply(self.clean_text)
 
-                print(f'Generating weighted embeddings (title_weight={title_weight})...')
+                print(f'Generating weighted dense embeddings (title_weight={title_weight})...')
                 title_embs = self.generate_embeddings(judul_cleaned.tolist())
                 abstract_embs = self.generate_embeddings(abstrak_cleaned.tolist())
                 embeddings = (title_weight * title_embs + (1 - title_weight) * abstract_embs)
@@ -163,18 +191,38 @@ class EmbeddingManager:
                 df['teks'] = df['teks'].apply(self.clean_text)
                 embeddings = self.generate_embeddings(df['teks'].tolist())
 
+        # Generate sparse (BM25) embeddings untuk setiap document
+        sparse_embeddings = []
+
+        print(f'Generating sparse BM25 embeddings...')
+        texts_for_sparse = (
+            df['judul'].astype(str) + ' ' +
+            df['abstrak'].astype(str)
+        ).tolist()
+        
+        sparse_embeddings = list(self.sparse_model.embed(texts_for_sparse))
+        print(f'Generated {len(sparse_embeddings)} sparse embeddings')
+
         # Create collection
         self.create_collection(recreate=recreate)
                 
-        # Prepare points untuk Qdrant
+        # Prepare points untuk Qdrant dengan dense + sparse vectors (jika tersedia)
+        print(f'Preparing {len(df)} points...')
         points = []
         for idx, (_, row) in enumerate(df.iterrows()):
             point_id = str(uuid.uuid4())
             
-            point = PointStruct(
-                id=point_id,  # atau bisa pakai uuid.uuid4().int
-                vector=embeddings[idx].tolist(),
-                payload={
+            # Build point with dense and sparse (bm25) vector
+            point_data = {
+                'id': point_id,
+                'vector': {
+                    'dense': embeddings[idx].tolist(),
+                    'sparse': SparseVector(
+                        indices=sparse_embeddings[idx].indices.tolist(),
+                        values=sparse_embeddings[idx].values.tolist(),
+                    )
+                },
+                'payload': {
                     'id_penulisan': point_id,
                     'jenis': str(row['jenis']),
                     'fakultas': str(row['fakultas']),
@@ -184,8 +232,9 @@ class EmbeddingManager:
                     'tahun': str(row['tahun']),
                     'abstrak': str(row['abstrak'])
                 }
-            )
-            points.append(point)
+            }
+            
+            points.append(PointStruct(**point_data))
         
         # Upload ke Qdrant
         print(f'Uploading {len(points)} points to Qdrant...')
@@ -194,44 +243,9 @@ class EmbeddingManager:
             points=points,
             wait=True
         )
-        print(f'Successfully ingested {len(points)} papers')
+        print(f'Successfully ingested {len(points)} papers with dense + sparse embeddings')
         
         return len(points)
-    
-    def search_similar(self, query_text: str, limit: int = 10, 
-                       filters: Dict = None) -> List[Dict]:
-        """
-        Search papers mirip dengan query text
-        
-        Args:
-            query_text: Judul atau deskripsi paper yang dicari
-            limit: Jumlah hasil
-            filters: Optional filters (e.g., jurusan, tahun)
-        
-        Returns:
-            List of results dengan score dan metadata
-        """
-        # Generate query embedding
-        query_embedding = self.model.encode(query_text)
-        
-        # Search di Qdrant
-        results = self.qdrant_client.query_points(
-            collection_name=self.collection_name,
-            query=query_embedding.tolist(),
-            limit=limit,
-            query_filter=filters
-        )
-        
-        # Format results (include id for later reference)
-        output = []
-        for result in results.points:
-            output.append({
-                'id': result.id,
-                'score': result.score,
-                **result.payload
-            })
-        
-        return output
     
     def search_similar_by_paper_id(self, paper_id: str, limit: int = 5) -> List[Dict]:
         """
@@ -260,7 +274,8 @@ class EmbeddingManager:
             # Query dengan vector, limit+1 untuk bisa exclude paper itu sendiri
             results = self.qdrant_client.query_points(
                 collection_name=self.collection_name,
-                query=paper_vector,
+                query=paper_vector.get('dense'),
+                using='dense',
                 limit=limit + 1
             )
             
@@ -281,13 +296,78 @@ class EmbeddingManager:
             print(f'Error searching similar papers by ID: {str(e)}')
             return []
 
+    def search_hybrid(self, query_text: str, limit: int = 10, 
+                     prefetch_limit: int = 30,
+                     filters: Dict = None) -> List[Dict]:
+        """
+        Hybrid search menggunakan dense (semantic) + sparse (BM25) dengan RRF fusion
+        
+        Args:
+            query_text: Query text untuk dicari
+            limit: Jumlah final results yang diinginkan
+            prefetch_limit: Jumlah results untuk prefetch dari masing-masing path sebelum fusion
+            filters: Optional filters (e.g., jurusan, tahun)
+        
+        Returns:
+            List of results dengan score dan metadata, re-ranked via RRF
+        """
+        # Generate dense embedding
+        dense_query = self.model.encode(query_text).tolist()
+        
+        # Generate sparse (BM25) embedding
+        sparse_query_list = list(self.sparse_model.embed([query_text]))
+        sparse_query = sparse_query_list[0]
+        sparse_query_vec = SparseVector(
+            indices=sparse_query.indices.tolist(),
+            values=sparse_query.values.tolist()
+        )
+        
+        # Hybrid search dengan Prefetch + Fusion.RRF
+        print(f'Running hybrid search for: "{query_text}"')
+        results = self.qdrant_client.query_points(
+            collection_name=self.collection_name,
+            prefetch=[
+                Prefetch(
+                    query=dense_query,
+                    using='dense',
+                    limit=prefetch_limit
+                ),
+                Prefetch(
+                    query=sparse_query_vec,
+                    using='sparse',
+                    limit=prefetch_limit
+                )
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),  # Native RRF fusion dari Qdrant
+            limit=limit,
+            query_filter=filters
+        )
+        
+        # Format results
+        output = []
+        for result in results.points:
+            output.append({
+                'id': result.id,
+                'score': result.score,
+                **result.payload
+            })
+        
+        print(f'Hybrid search returned {len(output)} results')
+        return output
+
     def get_collection_stats(self) -> Dict:
         """Get stats tentang collection"""
         collection_info = self.qdrant_client.get_collection(self.collection_name)
+        
+        # Handle both single vector and multi-vector (named vectors) formats
+        vectors_config = collection_info.config.params.vectors
+        # Get dense vector
+        dense_config = vectors_config.get('dense')
+
         return {
             'points_count': collection_info.points_count,
-            'vector_size': collection_info.config.params.vectors.size,
-            'distance': collection_info.config.params.vectors.distance
+            'vector_size': dense_config.size,
+            'distance': dense_config.distance
         }
     
     def get_all_papers(self, limit: int = 30000) -> List[Dict]:

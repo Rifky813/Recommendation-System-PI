@@ -172,7 +172,7 @@ with tab1:
                     try:
                         # Logika Cache: Cari baru jika query berubah, atau ambil dari cache jika kembali dari halaman detail
                         if btn_pressed or st.session_state.last_query != query:
-                            results = em.search_similar(query, limit=k_results)
+                            results = em.search_hybrid(query, limit=k_results)
                             st.session_state.search_results = results
                             st.session_state.last_query = query
                         else:
@@ -252,12 +252,6 @@ with tab1:
                                                 type='tertiary'
                                             )
 
-                                        # with col_m3:
-                                        #     st.caption(f"*{paper['jurusan']}*", text_alignment='center')
-                                        
-                                        # with col_m4:
-                                        #     st.caption(f"*{paper['tahun']}*", text_alignment='left')
-                                    
                                         # Detailed stats
                                         with st.expander("Detail Abstrak"):
                                             st.write(paper['abstrak'])
