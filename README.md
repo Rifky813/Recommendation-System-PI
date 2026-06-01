@@ -102,6 +102,80 @@ Uses Qdrant named vectors:
 
 Deterministic point IDs (MD5 hash of title) prevent duplicates on upsert.
 
+### Web Scraping with Scrapy
+
+The system uses **Scrapy** framework for efficient, scalable web scraping from Gunadarma's institutional repository.
+
+**Spider Architecture** (webscrape.py):
+
+```
+GunadarmaRepoSpider
+├── start_requests()
+│   └── Generate requests for all faculty + document type combinations
+│
+├── parse_listing()
+│   ├── Extract paper cards from search results
+│   ├── Follow detail links for each paper
+│   └── Auto-paginate through results
+│
+└── parse_detail()
+    ├── Extract abstract (ABSTRAKSI section)
+    ├── Extract exam date (TANGGAL SIDANG)
+    ├── Parse year from date
+    └── Apply stop-gap logic (halt if old papers encountered)
+```
+
+**Multi-Faceted Crawling Strategy**:
+
+The spider iterates through all combinations of:
+- **Document Types** (Jenis): Skripsi, Penulisan Ilmiah
+- **Faculties** (Fakultas): Ilmu Komputer, Ekonomi, Teknologi Industri
+
+For each combination, it:
+1. Fetches search results page by page
+2. Extracts paper titles, faculties, majors, advisors
+3. Follows detail links to extract abstracts and dates
+4. Auto-increments pages until no more results
+
+**Stop-Gap Logic**:
+
+To avoid crawling thousands of old papers, the spider tracks consecutive papers below MIN_YEAR (2020):
+- If 20 consecutive papers are older than 2020, the category is marked as complete
+- This prevents unnecessary requests while ensuring coverage of recent papers
+
+**Extending the Spider**:
+
+To add new faculties or document types, edit the TARGET_JENIS and TARGET_FAKULTAS dictionaries in webscrape.py:
+
+```python
+TARGET_FAKULTAS = {
+    "Ilmu Komputer dan Teknologi Informasi": "1",
+    "Ekonomi": "2",
+    "Teknologi Industri": "4",
+    "Your Faculty Name": "5",  # Add new faculty
+}
+```
+
+Then re-run the pipeline:
+```bash
+python main.py --pages 10 --recreate-db
+```
+
+The spider will automatically generate requests for all new combinations.
+
+**Error Handling**:
+
+- Failed detail page requests use errback handler and log warnings
+- Missing fields default to empty strings or "-"
+- Invalid year formats are skipped
+- Duplicate titles are removed during preprocessing
+
+**Performance**:
+
+- Uses Scrapy's asynchronous requests for fast concurrent crawling
+- Respects target website by limiting concurrent requests
+- Typical throughput: 50-100 papers per minute
+
 ## Usage Guide
 
 ### Tab 1: Recommendations
@@ -147,7 +221,6 @@ Advanced statistics:
 ├── main.py                # Pipeline orchestration (scrape -> embed -> index)
 ├── embedding.py           # EmbeddingManager class (hybrid search + Qdrant)
 ├── app.py                 # Streamlit UI (tabs, search, detail view, trends)
-├── repository.py          # Web scraper for Gunadarma library
 ├── webscrape.py           # Scraper implementation
 ├── requirements.txt       # Python dependencies
 ├── papers_data.csv        # Output: paper metadata (generated)
@@ -194,10 +267,6 @@ Reduce batch size in embedding.py:
 ```python
 embeddings = self.model.encode(texts, batch_size=16, ...)  # Reduce from 32
 ```
-
-### Papers indexed count seems high
-
-Uses deterministic ID (MD5 hash of title). If you re-run with `--recreate-db`, old data is deleted. If you run without `--recreate-db`, papers are updated (not duplicated).
 
 ### Search results show duplicate papers
 
@@ -271,9 +340,4 @@ Rifky - Universitas Gunadarma
 For detailed help:
 ```bash
 python main.py --help
-```
-
-For debugging:
-```bash
-python main.py --pages 2 --test  # Quick test with 2 pages
 ```
