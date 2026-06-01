@@ -1,20 +1,12 @@
 # Core dependencies
-requests
-beautifulsoup4
-pandas
-
-# Embedding & Vector DB
-sentence-transformers
-qdrant-client
-fastembed
-
-# Frontend
-streamlit
-plotly
-
-# Optional performance optimization
-numpy
-scikit-learn
-
-# Development (optional)
-python-dotenv
+fastembed>=0.8.0
+numpy>=2.4.4
+pandas>=3.0.2
+plotly>=6.7.0
+qdrant-client>=1.17.1
+regex>=2026.4.4
+requests>=2.33.1
+scrapy>=2.16.0
+sentence-transformers>=5.4.1
+streamlit>=1.56.0
+torchvision>=0.27.0

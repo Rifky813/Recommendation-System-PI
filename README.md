@@ -1,33 +1,36 @@
-# 📚 Sistem Rekomendasi Karya Ilmiah
+# Academic Paper Recommendation System
 
-Platform rekomendasi karya ilmiah berbasis **IndoBERT**, **Qdrant Vector Database**, dan **Streamlit**.
+A hybrid recommendation platform for academic papers using dense semantic search (IndoSBERT) + sparse keyword search (BM25), powered by Qdrant Vector Database and Streamlit.
 
-## 🎯 Fitur Utama
+## Key Features
 
-- **🔍 Pencarian Rekomendasi**: Cari karya ilmiah berdasarkan judul/topik dengan semantic similarity
-- **🎯 Hybrid Search**: Kombinasi similarity search + filtering (jurusan, tahun publikasi)
-- **📊 Analisis Tren**: Visualisasi distribusi karya per jurusan dan per tahun
-- **🔥 Heatmap**: Distribusi karya ilmiah berdasarkan jurusan vs tahun publikasi
-- **📈 Advanced Analytics**: Statistik tren dan insights data
+- **Hybrid Search**: Combines dense semantic embeddings (IndoSBERT) + sparse BM25 keyword search with RRF (Reciprocal Rank Fusion) for better retrieval quality
+- **Item-to-Item Recommendations**: Click on any paper to see 5 similar papers with detail pages
+- **Trend Analysis**: Visualize paper distribution by academic major and publication year
+- **Advanced Filtering**: Filter results by major and year
+- **Interactive UI**: Browse papers with abstracts, metadata, and links to original documents
+- **Heatmap Visualization**: Cross-tabulation of academic major vs publication year
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Model Embedding**: IndoBERT Lite (indobenchmark/indobert-lite-base-p1)
-- **Vector Database**: Qdrant (local storage)
-- **Frontend**: Streamlit
-- **Data Scraping**: BeautifulSoup4
-- **Visualization**: Plotly
+- **Dense Embeddings**: IndoSBERT (firqaaa/indo-sentence-bert-base, 768-dim, COSINE distance)
+- **Sparse Embeddings**: FastEmbed BM25 with IDF modifier
+- **Vector Database**: Qdrant (local persistent storage with named vectors)
+- **Retrieval Fusion**: Native RRF (Reciprocal Rank Fusion) via Qdrant Prefetch
+- **Frontend**: Streamlit with session state management
+- **Data Pipeline**: BeautifulSoup4 web scraper, pandas preprocessing
+- **Visualization**: Plotly Express and Plotly Graph Objects
 
-## 📋 Prasyarat
+## Requirements
 
 - Python 3.8+
 - pip / conda
-- ~2GB disk space (untuk model + data)
-- Internet connection (untuk download model pertama kali)
+- 3-4GB disk space (models + embeddings + vector storage)
+- Internet connection (for model downloads on first run)
 
-## 🚀 Instalasi & Setup
+## Installation & Setup
 
-### 1. Clone / Setup Folder
+### 1. Setup Project Folder
 
 ```bash
 cd "c:\Users\rifky\Downloads\Projects\PI - Sistem Rekomendasi"
@@ -39,164 +42,238 @@ cd "c:\Users\rifky\Downloads\Projects\PI - Sistem Rekomendasi"
 pip install -r requirements.txt
 ```
 
-**Note**: Instalasi pertama kali akan download IndoBERT model (~300MB). Tunggu beberapa menit.
-
-### 3. Jalankan Pipeline Orchestration
+### 3. Run Pipeline Orchestration
 
 ```bash
 python main.py --pages 5 --test
 ```
 
-**Parameter:**
-- `--pages 5`: Scrape 5 halaman dari repository Gunadarma (~100-150 papers)
-- `--test`: Jalankan test search setelah indexing selesai
-- `--skip-scrape`: Skip scraping, gunakan CSV yang sudah ada
+**Common options:**
+- `--pages 5`: Scrape 5 pages from Gunadarma repository (~100-150 papers)
+- `--test`: Run test hybrid search after indexing
+- `--skip-scrape`: Skip scraping, use existing CSV
+- `--recreate-db`: Delete and recreate Qdrant collection
+- `--collection hybrid_60`: Set custom collection name
+- `--title-weight 0.6`: Use 60% title, 40% abstract for embeddings (default: combined)
 
 **Output:**
-- `papers_data.csv`: Data papers yang di-scrape
-- `./qdrant_storage/`: Vector database dengan indexed embeddings
+- `papers_data.csv`: Scraped paper metadata
+- `./qdrant_storage/`: Qdrant database with dense + sparse embeddings
 
-Proses ini memakan waktu ~5-15 menit tergantung jumlah papers dan kecepatan internet.
+First run takes 10-20 minutes depending on page count and internet speed.
 
-### 4. Jalankan Streamlit App
+### 4. Run Streamlit App
 
 ```bash
 streamlit run app.py
 ```
 
-App akan buka di `http://localhost:8501`
+Opens at `http://localhost:8501`
 
-## 📖 Penggunaan
+## Architecture
 
-### Tab 1: Rekomendasi 🔍
+### Search Pipeline
 
-1. Masukkan judul atau topik karya ilmiah di search box
-   - Contoh: "sistem rekomendasi machine learning"
-   - Contoh: "analisis sentimen media sosial"
+```
+User Query
+    |
+    +---> Dense Embedding (IndoSBERT)
+    |           |
+    |           v
+    |     Qdrant Dense Search (30 results)
+    |
+    +---> Sparse Embedding (BM25)
+                |
+                v
+          Qdrant Sparse Search (30 results)
+                |
+                v
+          RRF Fusion (combine rankings)
+                |
+                v
+          Final Results (10 papers)
+```
 
-2. (Opsional) Pilih jurusan dan tahun untuk filter hasil
+### Vector Storage
 
-3. Klik "Cari Rekomendasi"
+Uses Qdrant named vectors:
+- `dense`: COSINE distance, 768-dimensional (IndoSBERT)
+- `sparse`: IDF modifier (BM25 keyword matching)
 
-4. Lihat hasil dengan:
-   - Similarity score (%)
-   - Metadata: Penulis, Jurusan, Tahun, Jenis
-   - Link ke dokumen original
+Deterministic point IDs (MD5 hash of title) prevent duplicates on upsert.
 
-### Tab 2: Analisis Tren 📊
+## Usage Guide
 
-Visualisasi tren karya ilmiah:
-- **Distribusi per Jurusan**: Bar chart jumlah karya per jurusan
-- **Tren per Tahun**: Line chart publikasi seiring waktu
-- **Heatmap**: Jurusan vs Tahun untuk insight komprehensif
+### Tab 1: Recommendations
 
-## 📁 File Structure
+1. Enter paper title or research topic
+   - Example: "machine learning recommendation"
+   - Example: "sentiment analysis"
+
+2. (Optional) Set number of results (5-30)
+
+3. (Optional) Filter by major and year
+
+4. Click "Search Recommendations"
+
+5. Browse results:
+   - Similarity score percentage
+   - Paper title (clickable for detail page)
+   - Metadata: Type, Major, Year, Advisor
+   - Abstract in expandable section
+   - Links to original document
+
+6. Click "View Details & Similar Papers" to:
+   - See full paper metadata
+   - Find 5 similar papers
+   - Click through chains of similar papers
+
+### Tab 2: Trend Analysis
+
+Visualizations of paper data:
+- **Distribution by Major**: Bar chart of papers per academic major
+- **Trend by Year**: Line chart of publications over time
+- **Heatmap**: Cross-tabulation of major vs year
+
+Advanced statistics:
+- Most common major
+- Most productive year
+- Average papers per major
+
+## File Structure
 
 ```
 .
-├── repository.py          # Web scraper (Gunadarma library)
-├── embedding.py           # Embedding manager + Qdrant integration
-├── app.py                 # Streamlit interface
-├── main.py                # Orchestration pipeline
-├── requirements.txt       # Dependencies
-├── papers_data.csv        # Output data (generated)
-├── qdrant_storage/        # Vector DB (generated)
+├── main.py                # Pipeline orchestration (scrape -> embed -> index)
+├── embedding.py           # EmbeddingManager class (hybrid search + Qdrant)
+├── app.py                 # Streamlit UI (tabs, search, detail view, trends)
+├── repository.py          # Web scraper for Gunadarma library
+├── webscrape.py           # Scraper implementation
+├── requirements.txt       # Python dependencies
+├── papers_data.csv        # Output: paper metadata (generated)
+├── qdrant_storage/        # Output: vector database (generated)
 └── README.md              # This file
 ```
 
-## 🔧 Troubleshooting
+### Key Classes
 
-### ❌ "ModuleNotFoundError: No module named 'sentence_transformers'"
+**EmbeddingManager** (embedding.py):
+- `__init__`: Load models (IndoSBERT + BM25)
+- `create_collection()`: Setup Qdrant with dense + sparse vectors
+- `ingest_papers()`: Generate embeddings and upsert to Qdrant
+- `search_hybrid()`: Dense + sparse search with RRF fusion
+- `search_similar_by_paper_id()`: Find similar papers for detail view
+- `get_collection_stats()`: Metadata about indexed papers
+- `analyze_trends()`: Distribution analysis
 
-Jalankan install ulang:
+## Troubleshooting
+
+### Error: "ModuleNotFoundError: No module named 'sentence_transformers'"
+
+Reinstall dependencies:
 ```bash
 pip install -r requirements.txt --upgrade
 ```
 
-### ❌ "Vector database tidak ditemukan"
+### Error: "Vector database not found"
 
-Jalankan pipeline orchestration terlebih dahulu:
+Run the pipeline first:
 ```bash
 python main.py
 ```
 
-### ❌ Model download lambat
+### Slow initial setup
 
-Model IndoBERT (~300MB) hanya download sekali saat pertama kali digunakan. Proses ini memakan waktu 5-10 menit tergantung koneksi internet. Bersabar dan jangan stop process.
+- Model download (~600MB) takes 5-10 minutes on first run
+- Embedding generation takes 5-15 minutes depending on paper count
+- Do not interrupt the process
 
-### ❌ Memory error saat embedding
+### Memory issues during embedding
 
-Jika device Anda memory-limited, reduce batch size di `embedding.py`:
+Reduce batch size in embedding.py:
 ```python
-embeddings = self.model.encode(texts, batch_size=16, ...)  # Ubah dari 32 ke 16
+embeddings = self.model.encode(texts, batch_size=16, ...)  # Reduce from 32
 ```
 
-### ❌ Scraping error / Gunadarma website berubah
+### Papers indexed count seems high
 
-Jika selector HTML berubah, update class names di `repository.py`:
-- `div`, `class_='card shadow'` → main paper card
-- `h5`, `class_='card-title font-weight-bold text-purple'` → judul
-- `h6`, `class_='card-subtitle'` → metadata
+Uses deterministic ID (MD5 hash of title). If you re-run with `--recreate-db`, old data is deleted. If you run without `--recreate-db`, papers are updated (not duplicated).
 
-## 🎛️ Advanced Configuration
+### Search results show duplicate papers
 
-### Mengubah jumlah pages yang di-scrape
+This indicates papers with identical titles (already filtered in preprocessing). If persisting, check paper_data.csv for duplicates.
+
+## Advanced Configuration
+
+### Custom collection name
 
 ```bash
-python main.py --pages 10  # Scrape 10 pages (~200-300 papers)
+python main.py --collection my_papers_hybrid
 ```
 
-### Menggunakan model IndoBERT yang berbeda
+### Change embedding weighting
 
 ```bash
-python main.py --model indobenchmark/indobert-base-p1  # Model lebih besar, lebih baik tapi lebih lambat
+python main.py --title-weight 0.7  # 70% title, 30% abstract
+python main.py --title-weight 1.0  # Title only
+python main.py --title-weight 0.0  # Abstract only
+python main.py                      # Combined (default)
 ```
 
-### Recreate database
+### Use different model
 
 ```bash
-python main.py --skip-scrape --recreate-db
+python main.py --model indobenchmark/indobert-base-p1
 ```
 
-### Streaming dengan custom CSV
+### Ingest existing papers from CSV
 
 ```bash
-# 1. Siapkan CSV dengan columns: judul, penulis, jurusan, jenis, tahun, link
-python main.py --csv custom_data.csv --skip-scrape
+python main.py --csv my_papers.csv --skip-scrape
 ```
 
-## 📊 Performance Tips
+CSV should have columns: jenis, fakultas, judul, dosen_pembimbing, jurusan, tahun, abstrak
 
-1. **Search Speed**: Qdrant local sangat cepat (~100ms per query)
-2. **Memory**: Streamlit cache model, jadi tidak reload setiap kali
-3. **Scale**: Untuk 1000+ papers, pertimbangkan gunakan Qdrant server mode
+## Security & Privacy
 
-## 🔐 Security & Privacy
+- All data stored locally in `./qdrant_storage/`
+- No cloud connectivity
+- Models from official Huggingface
+- No external API calls during search
 
-- All data local di folder `./qdrant_storage/`
-- Tidak ada data sent ke cloud
-- Model IndoBERT di-download dari Huggingface official
+## Limitations & Future Work
 
-## 🚀 Next Steps (Phase 2)
+- Currently search by title/abstract only (no full-text)
+- Scraper tied to Gunadarma library structure (will break if website changes)
+- No user authentication or multi-user support
+- No explanation of why papers are similar
 
-- [ ] Fine-tune IndoBERT dengan domain-specific Indonesian academic papers
-- [ ] Implementasi clustering untuk auto-topic discovery
-- [ ] Deploy ke cloud (AWS, GCP, Heroku)
-- [ ] Add user authentication & session management
-- [ ] Real-time ingestion pipeline dengan database
-- [ ] Recommendation explanation (why this paper?)
+### Planned Features
 
-## 📝 License
+- [ ] Fine-tune IndoSBERT on domain-specific academic papers
+- [ ] Auto clustering and topic discovery
+- [ ] Cloud deployment (AWS/GCP)
+- [ ] Recommendation explanations
+- [ ] Full-text search support
+- [ ] Real-time ingestion pipeline
+- [ ] User feedback for ranking refinement
 
-Project pribadi untuk PI Sistem Rekomendasi Gunadarma
+## License
 
-## 👤 Author
+Personal project for PI Sistem Rekomendasi, Universitas Gunadarma
 
-Rifky | Universitas Gunadarma
+## Author
+
+Rifky - Universitas Gunadarma
 
 ---
 
-**Questions?** Check `embedding.py` docstrings atau run:
+For detailed help:
 ```bash
 python main.py --help
+```
+
+For debugging:
+```bash
+python main.py --pages 2 --test  # Quick test with 2 pages
 ```
