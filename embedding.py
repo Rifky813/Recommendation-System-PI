@@ -8,7 +8,7 @@ from qdrant_client.models import (
     SparseVectorParams, Modifier, Prefetch, Fusion, FusionQuery
 )
 import uuid
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from fastembed import SparseTextEmbedding
 
 class EmbeddingManager:
@@ -16,7 +16,9 @@ class EmbeddingManager:
     
     def __init__(self, model_name: str = 'firqaaa/indo-sentence-bert-base', 
                  qdrant_path: str = './qdrant_storage',
-                 collection_name: str = 'hybrid_60'):
+                 collection_name: str = 'hybrid_60',
+                 qdrant_url: str = None,
+                 qdrant_api_key: str = None):
         """
         Initialize embedding manager dengan dense + sparse (BM25) support
         
@@ -31,14 +33,19 @@ class EmbeddingManager:
         print(f'Dense model loaded. Embedding dimension: {self.embedding_dim}')
         
         # Initialize sparse BM25 model dari fastembed
-        self.sparse_model = None
         print(f'Loading sparse embedding model (BM25)...')
         self.sparse_model = SparseTextEmbedding(model_name="Qdrant/bm25")
         print(f'Sparse BM25 model loaded successfully')
         
-        print(f'Initializing Qdrant at {qdrant_path}...')
-        self.qdrant_client = QdrantClient(path=qdrant_path)
+        print(f'Initializing Qdrant...')
         self.collection_name = collection_name
+
+        if qdrant_url:
+            print(f'Connecting to Qdrant Cloud...')
+            self.qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+        else:
+            print(f'Connecting to Qdrant Local Path: {qdrant_path}...')
+            self.qdrant_client = QdrantClient(path=qdrant_path)
     
     def create_collection(self, recreate: bool = False):
         """Create Qdrant collection dengan support dense + sparse (BM25) vectors"""
@@ -119,7 +126,7 @@ class EmbeddingManager:
 
         return text.strip()
 
-    def is_repeated_char(self, text: str, min_repeat: int = 6) -> bool:
+    def is_repeated_char(self, text: str) -> bool:
         """
         Return True if text consists mostly of one repeated character.
         

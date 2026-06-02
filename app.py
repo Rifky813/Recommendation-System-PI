@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from embedding import EmbeddingManager
 from main import generate_paper_link
 import os
@@ -63,13 +62,25 @@ st.markdown("""
 @st.cache_resource
 def load_embedding_manager():
     """Load embedding manager (cached for performance)"""
-    qdrant_path = './qdrant_storage'
-    collection_name = os.getenv('COLLECTION_NAME', 'papers')
-    if not os.path.exists(qdrant_path):
-        st.error("❌ Vector database tidak ditemukan. Silakan jalankan main.py terlebih dahulu.")
-        st.stop()
+    collection_name = os.getenv('COLLECTION_NAME', 'hybrid_60')
     
-    return EmbeddingManager(qdrant_path=qdrant_path, collection_name=collection_name)
+    # Cek apakah konfigurasi cloud tersedia di Streamlit Secrets
+    is_cloud = "QDRANT_URL" in st.secrets
+    
+    if is_cloud:
+        # Jika di Cloud, kirim URL dan API Key ke EmbeddingManager
+        return EmbeddingManager(
+            collection_name=collection_name,
+            qdrant_url=st.secrets["QDRANT_URL"],
+            qdrant_api_key=st.secrets["QDRANT_API_KEY"]
+        )
+    else:
+        qdrant_path = './qdrant_storage'
+        if not os.path.exists(qdrant_path):
+            st.error("❌ Vector database tidak ditemukan. Silakan jalankan main.py terlebih dahulu.")
+            st.stop()
+        
+        return EmbeddingManager(qdrant_path=qdrant_path, collection_name=collection_name)
 
 # Load manager
 em = load_embedding_manager()
