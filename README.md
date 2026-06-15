@@ -2,6 +2,14 @@
 
 A hybrid recommendation platform for academic papers using dense semantic search (IndoSBERT) + sparse keyword search (BM25), powered by Qdrant Vector Database and Streamlit.
 
+# Demo
+
+<img width="1000" height="512" alt="Screen Recording 2026-06-15 211849 (online-video-cutter com)" src="https://github.com/user-attachments/assets/16df215c-f46b-499d-931e-6af673b5451e" />
+
+
+Try it here: https://ug-paper-recommender.streamlit.app/
+
+
 ## Key Features
 
 - **Hybrid Search**: Combines dense semantic embeddings (IndoSBERT) + sparse BM25 keyword search with RRF (Reciprocal Rank Fusion) for better retrieval quality
