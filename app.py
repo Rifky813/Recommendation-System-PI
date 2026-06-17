@@ -64,15 +64,18 @@ def load_embedding_manager():
     """Load embedding manager (cached for performance)"""
     collection_name = os.getenv('COLLECTION_NAME', 'hybrid_60')
     
-    # Cek apakah konfigurasi cloud tersedia di Streamlit Secrets
-    is_cloud = "QDRANT_URL" in st.secrets
-    
+    try:
+        qdrant_url = st.secrets["QDRANT_URL"]
+        qdrant_api_key = st.secrets["QDRANT_API_KEY"]
+        is_cloud = True
+    except Exception:
+        is_cloud = False
+
     if is_cloud:
-        # Jika di Cloud, kirim URL dan API Key ke EmbeddingManager
         return EmbeddingManager(
             collection_name=collection_name,
-            qdrant_url=st.secrets["QDRANT_URL"],
-            qdrant_api_key=st.secrets["QDRANT_API_KEY"]
+            qdrant_url=qdrant_url,
+            qdrant_api_key=qdrant_api_key
         )
     else:
         qdrant_path = './qdrant_storage'
@@ -310,16 +313,16 @@ with tab1:
         st.markdown("---")
         
         # Similar papers section
-        st.markdown("### 📚 Dokumen Serupa")
+        st.markdown("### 📚 Karya Serupa")
         
-        with st.spinner("🔄 Mencari dokumen serupa..."):
+        with st.spinner("🔄 Mencari karya serupa..."):
             try:
                 similar_papers = em.search_similar_by_paper_id(paper['id'], limit=5)
                 
                 if not similar_papers:
-                    st.info("ℹ️ Tidak ada dokumen serupa yang ditemukan")
+                    st.info("ℹ️ Tidak ada karya serupa yang ditemukan")
                 else:
-                    st.write(f"**Ditemukan {len(similar_papers)} dokumen serupa:**")
+                    st.write(f"**Ditemukan {len(similar_papers)} karya serupa:**")
                     
                     for idx, similar_paper in enumerate(similar_papers, 1):
                         with st.container(border=True):
@@ -346,7 +349,7 @@ with tab1:
                             # Detail button for similar papers
                             col_sim_detail, col_sim_doc = st.columns(2)
                             with col_sim_detail:
-                                # MENGGUNAKAN CALLBACK UNTUK TOMBOL DOKUMEN SERUPA
+                                # MENGGUNAKAN CALLBACK UNTUK TOMBOL KARYA SERUPA
                                 st.button(
                                     "📖 Lihat Detail", 
                                     key=f"detail_{similar_paper['id']}", 
@@ -364,7 +367,7 @@ with tab1:
                                 st.write(similar_paper['abstrak'])
             
             except Exception as e:
-                st.error(f"❌ Error mencari dokumen serupa: {str(e)}")
+                st.error(f"❌ Error mencari karya serupa: {str(e)}")
 
 # ============= TAB 2: TREND ANALYSIS =============
 with tab2:
