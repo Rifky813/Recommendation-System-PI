@@ -55,6 +55,12 @@ st.markdown("""
         border: none;
         box-shadow: none;
     }
+    .tip-card{
+        background:#1f2128;
+        border:1px solid #333;
+        border-radius:8px;
+        padding:14px 16px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -97,23 +103,27 @@ st.markdown('<h1 class="main-header">📚 Sistem Rekomendasi Karya Ilmiah</h1>',
 
 # Sidebar
 with st.sidebar:
-    st.header("⚙️ Settings & Info")
-    
-    st.markdown("### Dataset Info")
-    st.metric("Total Papers", stats['points_count'])
+    st.header("⚙️ Dataset Info")
+    st.metric("Total Dokumen", stats['points_count'])
     
     # Get trend data
     trends = em.analyze_trends()
+    min_year = min(trends['tahun_distribution'])
+    max_year = max(trends['tahun_distribution'])
+    # st.metric("Total Jurusan", len(trends['jurusan_distribution']))
     st.metric("Total Jurusan", len(trends['jurusan_distribution']))
-    st.metric("Total Tahun", len(trends['tahun_distribution']))
+    st.metric("Rentang Tahun", f"{min_year}-{max_year}")
     
-    st.markdown("### About")
-    st.info("""
-    **Sistem Rekomendasi Karya Ilmiah** menggunakan:
-    - 🤗 IndoSBERT untuk embedding text
-    - 🔍 Qdrant untuk vector search
-    - 🎯 Hybrid search (similarity + filtering)
-    """)
+    st.header("📌 Tips")
+    st.markdown("""
+    <div class="tip-card">
+    <ul>
+    <li>Gunakan judul skripsi atau topik penelitian</li>
+    <li>Bisa memakai kata kunci</li>
+    <li>Gunakan bahasa Indonesia</li>
+    </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Callback function to maintain state
 def buka_detail(data_paper):
@@ -142,7 +152,7 @@ with tab1:
         
         with col1:
             query = st.text_input(
-                "📖 Masukkan judul atau topik karya ilmiah yang Anda cari:",
+                "Masukkan judul atau topik karya ilmiah yang Anda cari:",
                 placeholder="Contoh: sistem rekomendasi menggunakan machine learning",
                 key="search_query"
             )
@@ -157,19 +167,19 @@ with tab1:
             )
         
         # Filters (sidebar-like)
-        st.markdown("### 🔎 Filter Hasil")
+        st.markdown("### Filter Hasil")
         col_f1, col_f2 = st.columns(2)
         
         with col_f1:
             filter_jurusan = st.selectbox(
-                "Filter by Jurusan (opsional):",
+                "Filter by Jurusan:",
                 ["Semua"] + sorted(list(trends['jurusan_distribution'].keys())),
                 key="filter_jurusan"
             )
         
         with col_f2:
             filter_tahun = st.selectbox(
-                "Filter by Tahun (opsional):",
+                "Filter by Tahun:",
                 ["Semua"] + sorted(list(trends['tahun_distribution'].keys()), reverse=True),
                 key="filter_tahun"
             )
@@ -466,19 +476,17 @@ with tab2:
     
     # Heatmap: Jurusan x Tahun
     st.markdown("### 🔥 Heatmap: Jurusan vs Tahun")
-    
     try:
         pivot_data = papers_df.pivot_table(
             index='jurusan',
             columns='tahun',
             aggfunc='size',
             fill_value=0
-        )
+        ).rename_axis(index=None, columns=None)
         
         fig_heatmap = px.imshow(
             pivot_data,
             labels=dict(color="Jumlah Karya"),
-            title='Distribusi Karya Ilmiah: Jurusan vs Tahun',
             color_continuous_scale='YlOrRd'
         )
         fig_heatmap.update_layout(height=500)
