@@ -18,21 +18,8 @@ st.markdown("""
 <style>
     .main-header {
         font-size: 2.5em;
-        color: #1f77b4;
         font-weight: bold;
-    }
-    .subheader-custom {
-        font-size: 1.3em;
-        color: #555;
-        margin-top: 20px;
-    }
-    .paper-card {
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        background-color: #f9f9f9;
-    }
+    }   
     .score-badge {
         display: inline-block;
         background-color: #4CAF50;
@@ -50,10 +37,6 @@ st.markdown("""
     .paper-link:hover {
         text-decoration: underline !important;
         color: #0073bb !important;
-    }
-    .stExpander > details {
-        border: none;
-        box-shadow: none;
     }
     .tip-card{
         background:#1f2128;
@@ -145,15 +128,15 @@ with tab1:
     # ===== CONDITIONAL RENDERING: SEARCH VIEW vs DETAIL VIEW =====
     if st.session_state.selected_paper is None:
         # ===== SEARCH VIEW (EXISTING) =====
-        st.markdown('<h2 class="subheader-custom">Cari Karya Ilmiah Sejenis</h2>', 
+        st.markdown('<h2 class="subheader-custom">Telusuri Karya Ilmiah Sejenis</h2>', 
                     unsafe_allow_html=True)
         
         col1, col2 = st.columns([3, 1])
         
         with col1:
             query = st.text_input(
-                "Masukkan judul atau topik karya ilmiah yang Anda cari:",
-                placeholder="Contoh: sistem rekomendasi menggunakan machine learning",
+                "Masukkan judul, topik, atau kata kunci karya ilmiah yang Anda cari:",
+                placeholder="Cari disini",
                 key="search_query"
             )
         
@@ -405,7 +388,7 @@ with tab2:
             x='Jurusan',
             y='Jumlah',
             title='Jumlah Karya Ilmiah per Jurusan',
-            labels={'Jumlah': 'Jumlah Karya', 'Jurusan': 'Jurusan'},
+            labels={'Jumlah': 'Jumlah Karya', 'Jurusan': ''},
             color='Jumlah',
             color_continuous_scale='Blues'
         )
@@ -433,7 +416,7 @@ with tab2:
             x='Tahun',
             y='Jumlah',
             title='Trend Karya Ilmiah per Tahun',
-            labels={'Jumlah': 'Jumlah Karya', 'Tahun': 'Tahun'},
+            labels={'Jumlah': 'Jumlah Karya', 'Tahun': ''},
             markers=True,
             line_shape='linear'
         )
