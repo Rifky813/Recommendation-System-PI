@@ -101,7 +101,7 @@ with st.sidebar:
     st.markdown("""
     <div class="tip-card">
     <ul>
-    <li>Gunakan judul skripsi atau topik penelitian</li>
+    <li>Gunakan judul, kata kunci, atau topik penelitian</li>
     <li>Bisa memakai kata kunci</li>
     <li>Gunakan bahasa Indonesia</li>
     </ul>
