@@ -260,7 +260,7 @@ with tab1:
                                             )
 
                                         # Detailed stats
-                                        with st.expander("Detail Abstrak"):
+                                        with st.expander("Lihat Abstrak"):
                                             st.write(paper['abstrak'])
 
                     except Exception as e:
